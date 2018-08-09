@@ -1,0 +1,146 @@
+apiVersion: v1
+kind: Template
+labels:
+  app: dolphin
+message: |-
+  Application named ${NAME} is being created
+metadata:
+  annotations:
+    description: |-
+      Dolphin application with Postgresql database
+    openshift.io/display-name: Dolphin (Persistent)
+    tags: selenium
+  name: selenium-persistent
+objects:
+
+################################
+##  Application configuration  ##
+################################
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: ${NAME}
+    labels:
+      app: ${NAME}
+    annotations:
+      description: "Resulting Docker Image after the build of my application frontend."
+
+- apiVersion: "v1"
+  kind: "BuildConfig"
+  metadata:
+    name: ${NAME}
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${NAME}:latest
+    resources:
+      limits:
+        memory: 2000Mi
+        cpu: 2000m
+    source:
+      git:
+        uri: https://gitlab.forge.orange-labs.fr/sspo/dolphin.git
+        ref: "${BRANCH}"
+      sourceSecret:
+        name: default-gitlab-user
+      type: Git
+    strategy:
+      sourceStrategy:
+        env:
+          - name: KERMIT_PGSQL_APP_HOST
+            value: ${DATABASE_SERVICE_NAME}
+          - name: KERMIT_PGSQL_APP_DATABASE
+            value: ${POSTGRESQL_DATABASE}
+          - name: KERMIT_PGSQL_APP_USER
+            value: ${POSTGRESQL_USER}
+          - name: KERMIT_PGSQL_APP_PASSWORD
+            value: ${POSTGRESQL_PASSWORD}
+        from:
+          from:
+            kind: ImageStreamTag
+            name: php-custom:7.0
+        incremental: false
+      type: Source
+    successfulBuildsHistoryLimit: 5
+    triggers:
+    - type: ConfigChange
+    - imageChange:
+      type: ImageChange
+ 
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${NAME}
+  spec:
+    replicas: 1
+    selector:
+      name: ${NAME}
+    strategy:
+      type: Rolling
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+        pre:
+          failurePolicy: Abort
+          execNewPod:
+            containerName: dolphin
+            command: 
+              - /bin/sh
+              - -c
+              - |
+                php ./app/console doctrine:migrations:migrate --no-interaction --env=dev
+    template:
+      metadata:
+        labels:
+          name: ${NAME}
+        name: ${NAME}
+      spec:
+        containers:
+        - env:
+          envFrom:
+            - configMapRef:
+                name: dolphin-configmap
+          image: ' '
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            timeoutSeconds: 3
+          name: dolphin
+          ports:
+          - containerPort: 8080
+          resources:
+            limits:
+              memory: ${MEMORY_LIMIT}
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - dolphin
+        from:
+          kind: ImageStreamTag
+          name: ${NAME}:latest
+      type: ImageChange
+    - type: ConfigChange
+## Template Parameters
+parameters:
+- description: Maximum amount of memory the container can use.
+  displayName: Memory Limit
+  name: MEMORY_LIMIT
+  required: true
+  value: 512Mi
+- description: The name of the Cachet application
+  displayName: Cachet Application Name
+  name: NAME
+  required: true
+  value: selenium
+  
+  
+  
+  
+  

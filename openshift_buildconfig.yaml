@@ -7,7 +7,7 @@ spec:
   output:
     to:
       kind: ImageStreamTag
-      name:  python-iuliu:3.0
+      name:  python-iuliu:latest
   # Repo which contains the Dockerfile and any other requirements for it
   source:
     git:
@@ -18,7 +18,7 @@ spec:
     dockerStrategy:
       from:
         kind: ImageStreamTag
-        name: python-iuliu:3.0
+        name: python-iuliu:latest
         namespace: openshift
     type: Docker
   # this ImageChange trigger will automatically keep your base image up to date with the original image
@@ -29,6 +29,6 @@ spec:
     imagechange:
       from:
         kind: "ImageStreamTag"
-        name: "python-iuliu:3.0"
+        name: "python-iuliu"
         namespace: openshift
   resources: {}
